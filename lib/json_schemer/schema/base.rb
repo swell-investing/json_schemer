@@ -84,15 +84,27 @@ module JSONSchemer
         yield error(data, schema, pointer, 'enum') if enum && !enum.include?(data)
         yield error(data, schema, pointer, 'const') if schema.key?('const') && schema['const'] != data
 
-        yield error(data, schema, pointer, 'allOf') if all_of && !all_of.all? { |subschema| valid?(data, subschema, pointer, parent_uri) }
-        yield error(data, schema, pointer, 'anyOf') if any_of && !any_of.any? { |subschema| valid?(data, subschema, pointer, parent_uri) }
-        yield error(data, schema, pointer, 'oneOf') if one_of && !one_of.one? { |subschema| valid?(data, subschema, pointer, parent_uri) }
+        if all_of
+          subschemas = all_of.lazy.map { |subschema| validate(data, subschema, pointer, parent_uri) }
+          yield error(data, schema, pointer, 'allOf', subschemas) unless subschemas.all?(&:none?)
+        end
+
+        if any_of
+          subschemas = any_of.lazy.map { |subschema| validate(data, subschema, pointer, parent_uri) }
+          yield error(data, schema, pointer, 'anyOf', subschemas) unless subschemas.any?(&:none?)
+        end
+
+        if one_of
+          subschemas = one_of.lazy.map { |subschema| validate(data, subschema, pointer, parent_uri) }
+          yield error(data, schema, pointer, 'oneOf', subschemas) unless subschemas.one?(&:none?)
+        end
+
         yield error(data, schema, pointer, 'not') if !not_schema.nil? && valid?(data, not_schema, pointer, parent_uri)
 
         if if_schema && valid?(data, if_schema, pointer, parent_uri)
-          yield error(data, schema, pointer, 'then') if !then_schema.nil? && !valid?(data, then_schema, pointer, parent_uri)
+          validate(data, then_schema, pointer, parent_uri, &Proc.new) unless then_schema.nil?
         elsif if_schema
-          yield error(data, schema, pointer, 'else') if !else_schema.nil? && !valid?(data, else_schema, pointer, parent_uri)
+          validate(data, else_schema, pointer, parent_uri, &Proc.new) unless else_schema.nil?
         end
 
         case type
@@ -137,12 +149,13 @@ module JSONSchemer
         )
       end
 
-      def error(data, schema, pointer, type)
+      def error(data, schema, pointer, type, subschemas = nil)
         {
           'data' => data,
           'schema' => schema,
           'pointer' => pointer,
           'type' => type,
+          'subschemas' => subschemas
         }
       end
 
@@ -312,7 +325,11 @@ module JSONSchemer
         yield error(data, schema, pointer, 'maxItems') if max_items && data.size > max_items
         yield error(data, schema, pointer, 'minItems') if min_items && data.size < min_items
         yield error(data, schema, pointer, 'uniqueItems') if unique_items && data.size != data.uniq.size
-        yield error(data, schema, pointer, 'contains') if !contains.nil? && data.all? { |item| !valid?(item, contains, pointer, parent_uri) }
+
+        unless contains.nil?
+          subschemas = data.lazy.map { |subschema| validate(subschema, contains, pointer, parent_uri) }
+          yield error(data, schema, pointer, 'contains', subschemas) if subschemas.all?(&:any?)
+        end
 
         if items.is_a?(Array)
           data.each_with_index do |item, index|

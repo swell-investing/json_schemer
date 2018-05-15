@@ -94,7 +94,7 @@ Benchmark.ips do |x|
       raise if !success || errors.any?
     end
 
-    x.report("json_schem, uninitialized, #{name}, invalid") do
+    x.report("json_schema, uninitialized, #{name}, invalid") do
       success, errors = JsonSchema.parse!(schema).tap(&:expand_references!).validate(invalid)
       raise if success || errors.empty?
     end
@@ -104,7 +104,7 @@ Benchmark.ips do |x|
       raise if !success || errors.any?
     end
 
-    x.report("json_schem, initialized, #{name}, invalid") do
+    x.report("json_schema, initialized, #{name}, invalid") do
       success, errors = initialized_json_schema.validate(invalid)
       raise if success || errors.empty?
     end

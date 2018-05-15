@@ -65,6 +65,25 @@ class JSONSchemerTest < Minitest::Test
     assert errors.none?
   end
 
+  def test_error_subschemas
+    schema = {
+      'allOf' => [
+        {
+          'type' => 'integer',
+          'maximum' => 1
+        },
+        {
+          'type' => 'integer',
+          'maximum' => 10
+        }
+      ]
+    }
+    schema = JSONSchemer.schema(schema)
+    error = schema.validate(11).first
+    assert error.fetch('type') == 'allOf'
+    assert error.fetch('subschemas').flat_map(&:to_a).map { |e| e.fetch('type') }.to_a == ['maximum', 'maximum']
+  end
+
   {
     'draft4' => JSONSchemer::Schema::Draft4,
     'draft6' => JSONSchemer::Schema::Draft6,
