@@ -357,6 +357,55 @@ class JSONSchemerTest < Minitest::Test
     assert errors.first.values_at('data_pointer', 'schema_pointer') == ['/x/abc', '/properties/x/additionalProperties']
   end
 
+  def test_it_returns_nested_errors
+    root = {
+      'type' => 'object',
+      'required' => [
+        'numberOfModules'
+      ],
+      'properties' => {
+        'numberOfModules' => {
+          'allOf' => [
+            {
+              'not' => {
+                'type' => 'integer',
+                'minimum' => 38
+              }
+            },
+            {
+              'not' => {
+                'type' => 'integer',
+                'maximum' => 37,
+                'minimum' => 25
+              }
+            },
+            {
+              'not' => {
+                'type' => 'integer',
+                'maximum' => 24,
+                'minimum' => 12
+              }
+            }
+          ]
+        }
+      }
+    }
+    schema = JSONSchemer.schema(root)
+    errors = schema.validate({ 'numberOfModules' => 32 }).to_a
+    assert errors.first == {
+      'data' => 32,
+      'data_pointer' => '/numberOfModules',
+      'schema' => {
+        'type' => 'integer',
+        'maximum' => 37,
+        'minimum' => 25
+      },
+      'schema_pointer' => '/properties/numberOfModules/allOf/1/not',
+      'root_schema' => root,
+      'type' => 'not'
+    }
+  end
+
   {
     'draft4' => JSONSchemer::Schema::Draft4,
     'draft6' => JSONSchemer::Schema::Draft6,
